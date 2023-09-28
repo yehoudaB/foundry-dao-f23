@@ -8,7 +8,7 @@ contract Box is Ownable {
 
     event NumberChanged(uint256 number);
 
-    function store(uint256 number) public {
+    function store(uint256 number) public onlyOwner {
         s_number = number;
         emit NumberChanged(number);
     }
