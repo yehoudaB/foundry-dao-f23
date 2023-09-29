@@ -13,12 +13,13 @@ contract MyGovernorTest is Test {
     GovToken public govToken;
     TimeLock public timelock;
     address public USER = makeAddr("user");
-    uint256 public constant MIN_DELAY = 3600; // 1 hour after vote is passed
+
     address[] public proposers; // if empty, anyone can propose
     address[] public executors; // if empty, anyone can execute
     uint256[] values;
     bytes[] calldatas;
     address[] targets;
+    uint256 public constant MIN_DELAY = 3600; // 1 hour after vote is passed
     uint256 public constant VOTING_DELAY = 1; // how many blocks tills vote is active (1 block)
     uint256 public constant VOTING_PERIOD = 50400; // how many blocks till vote is closed (1 week)
 
@@ -61,10 +62,10 @@ contract MyGovernorTest is Test {
         uint256 proposalId = governor.propose(targets, values, calldatas, description);
 
         // 2. View the state
-        console.log("Proposal state: %s", uint256(governor.state(proposalId))); // should be Pending (0)
+        console.log("a Proposal state: %s ", uint256(governor.state(proposalId))); // should be Pending (0)
         vm.warp(block.timestamp + VOTING_DELAY + 1); // simulate time passing
-        vm.warp(block.number + VOTING_DELAY + 1); // simulate block passing
-        console.log("Proposal state: %s", uint256(governor.state(proposalId))); // should be Active (1)
+        vm.roll(block.number + VOTING_DELAY + 1); // simulate block passing
+        console.log("b Proposal state: %s", uint256(governor.state(proposalId))); // should be Active (1)
 
         string memory reason = "because I really want to";
         uint8 voteWay = 1; //  0 = against, 1 = for, 2 = abstain
@@ -72,10 +73,26 @@ contract MyGovernorTest is Test {
         vm.startPrank(USER);
         governor.castVoteWithReason(proposalId, voteWay, reason);
         vm.warp(block.timestamp + VOTING_PERIOD + 1); // simulate time passing
-        vm.warp(block.number + VOTING_PERIOD + 1); // simulate block passing
+        vm.roll(block.number + VOTING_PERIOD + 1); // simulate block passing
 
-        // 2. Queue the TX
+        console.log("c Proposal state: %s", uint256(governor.state(proposalId))); // should be Succeeded (4)
 
+        // 3. Queue the TX
+        bytes32 descriptionHash = keccak256(abi.encodePacked(description));
+        governor.queue(targets, values, calldatas, descriptionHash);
+
+        vm.warp(block.timestamp + MIN_DELAY + 1); // simulate time passing
+        vm.roll(block.number + MIN_DELAY + 1); // simulate block passing
+
+        console.log("d Proposal state: %s", uint256(governor.state(proposalId))); // should be Queued (5)
+
+        // 4. Execute the TX
+
+        governor.execute(targets, values, calldatas, descriptionHash);
+
+        assert(box.getNumber() == valueToStore);
+        console.log("Box value: %s", box.getNumber());
+        console.log(" e Proposal state: %s", uint256(governor.state(proposalId))); // should be Executed (7)
         vm.stopPrank();
     }
 }
